@@ -6,5 +6,5 @@ Just run robustness.py (depends on config.py) in order to replicate the results 
 vectors from pairwise comparison matrices against rank reversal: A probabilistic concept. (under reviews)*
 
 If one does not want to compute all the results but wants to replicate the plots,
-just switch load_results to True in replicate(), and the precomputed results from the folder of the same name
+just switch load_results to True in replicate(), and the precomputed results from the folder *results*
 will be used. 
