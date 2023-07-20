@@ -132,7 +132,7 @@ class Method(ABC):
 
 class SaatyEigenvectorMethod(Method):
     def __init__(self):
-        super().__init__('EVM', 'r')
+        super().__init__('EVM', 'darkorange') # 'darkorange' or 'darkviolet' = colour-blind friendly replacements for red
 
 
     def pcm2ranks(self, pcm):
@@ -152,7 +152,7 @@ class SaatyEigenvectorMethod(Method):
 
 class GeometricMeanMethod(Method):
     def __init__(self):
-        super().__init__('GMM', 'g')
+        super().__init__('GMM', 'dodgerblue') # 'dodgerblue' or 'skyblue' = colour-blind friendly replacements for green 
 
 
     def pcm2ranks(self, pcm):
@@ -165,7 +165,7 @@ class GeometricMeanMethod(Method):
 
 class CoherencyMethod(Method):
     def __init__(self):
-        super().__init__('COH', 'b')
+        super().__init__('COH', 'black') # 'black' or 'darkgray' = colour-blind friendly replacements for blue 
 
 
     def pcm2ranks(self, pcm):

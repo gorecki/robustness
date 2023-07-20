@@ -226,7 +226,8 @@ def plot_nD_one_type_R(robustness, cfg):
         ax.set_xticklabels(cfg.sigmas)
         ax.set_xlabel(r'$\sigma$')
         ax.set_ylim((0, 1))
-        ax.legend()
+        if i_n == 0:
+            ax.legend()
     fig.tight_layout()
 
 
@@ -343,7 +344,8 @@ def exp_prob_wrapper(cfg):
         else:
             plt.show(block = True)
 
-
+'''
+TODO: tohle vratit, az to budu publikovat
 def replicate():
     # Switch to True in order to replicate the desired result(s)
     to_replicate = {'Figure1': True, 
@@ -375,7 +377,40 @@ def replicate():
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, 
                     load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
+'''
 
+# TODO: urceno jen pro testovani, pak smazat
+def replicate():
+    # Switch to True in order to replicate the desired result(s)
+    to_replicate = {'Figure1': 0, 
+                    'Figure2': 1,
+                    'Figure3': 1,
+                    'Figure4': 1}
+
+    if to_replicate['Figure1']:
+        for N in [100, 1000, 10000]:
+            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True, 
+                      load_results = 1, save_fig = 0, plot_type = 'analytical' if N == 10000 else None) 
+            # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
+            #       then for N = 10000 we compute the results as well as we show the plot 
+            exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute (on Intel(R) Core(TM) i7-7700 CPU @3.60GHz and 32GB RAM)
+                                  
+
+    if to_replicate['Figure2']:
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, 
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
+                              # To get some results faster, decrease N (and expect less smooth outputs)  
+    
+    if to_replicate['Figure3']:
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False,  
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
+
+    if to_replicate['Figure4']:
+        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, 
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
 
 if __name__ == '__main__':
