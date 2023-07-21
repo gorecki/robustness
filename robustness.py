@@ -91,9 +91,12 @@ def replication_coh(PVgenerator, cfg, perturbation):
 
         results['n_all_reps']  += 1 # we have obtained unique PVs from all methods (note that COH could return None, which is Ok)
 
-        if ranks['COH'] is None:
-            # the noisy_pcm is not coherent, so repeat the replication
-            continue
+        if cfg.coherent_PCMs_only:
+            if ranks['COH'] is None: 
+                # as no ranks are returned from the COH method,
+                # this implies that the noisy_pcm is not coherent, 
+                # so repeat the replication
+                continue
 
         # now, we know that noisy_pcm is coherent, so we can do all statistics 
         true_ranks = pv.rank()
@@ -123,7 +126,7 @@ def exp_core(PVgenerator, cfg, perturbation):
 
 
 def exp_prob(cfg, perturbation, n, v1, v2_space, v3):
-    # iterates of the space of pririty vectors (represented here by v1, v2_space, v3)
+    # iterates the space of priority vectors (represented here by v1, v2_space, v3)
     # and computes the robustness via our MC apprach and eventually also via our analytical 
     # approach for the COH method
     robustness = {}
@@ -146,10 +149,11 @@ def exp_prob(cfg, perturbation, n, v1, v2_space, v3):
         
         for method in cfg.methods:
             robustness['cond_rough_' + method.name].append(results['n_equal_ranks_' + method.name]/results['n_' + method.name])   # rough robustness conditioned on isCOH
-        robustness['rough_COH'].append(results['n_equal_ranks_COH']/results['n_all_reps'])                # numerical equivalent to the analalytical case
-        if 'rough_analyt_COH' in robustness:
-            robustness['rough_analyt_COH'].append(analytical_COH_robustness(exp_prob_PVgenerator(), perturbation))
-        robustness['COH_ratio'].append(cfg.N / results['n_all_reps']) # #coherent/#all
+        if cfg.coherent_PCMs_only:
+            robustness['rough_COH'].append(results['n_equal_ranks_COH']/results['n_all_reps'])                # numerical equivalent to the analalytical case
+            if 'rough_analyt_COH' in robustness:
+                robustness['rough_analyt_COH'].append(analytical_COH_robustness(exp_prob_PVgenerator(), perturbation))
+            robustness['COH_ratio'].append(cfg.N / results['n_all_reps']) # #coherent/#all
         #COHdebug(v)
 
     print(f"n_all_reps = {results['n_all_reps']}") # just for the last v2_space point
@@ -299,7 +303,7 @@ def exp_prob_wrapper(cfg):
     do_random_v_space_f_addon = f'_randv2_{cfg.do_random_v_space}'
     res_dir = "results"
     create_dir_if_not_exists(res_dir)
-    res_fname = f'{res_dir}/res_N_{cfg.N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}.bin'
+    res_fname = f'{res_dir}/res_N_{cfg.N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}_COHonly_{cfg.coherent_PCMs_only}.bin'
     if cfg.load_results:
         with open(res_fname, 'rb') as handle:
             robustness, v1, v2_space, v3 = pickle.load(handle)    
@@ -326,11 +330,14 @@ def exp_prob_wrapper(cfg):
         if cfg.plot_type == 'numerical':
             if cfg.do_random_v_space:
                 plot_nD_one_type_R(robustness, cfg)
-                fig_name = f'probnD_COH_cond'
+                if cfg.coherent_PCMs_only:
+                    fig_name = f'probnD_COH_cond'
+                else:
+                    fig_name = f'probnD'
             else: # non random v2space
                 plot_3D_one_type_R(robustness, cfg, v1, v2_space, v3)
                 fig_name = 'prob3D_COH_cond'
-        else: # cfg.plot_type == 'analytical'
+        else: # cfg.plot_type in {'analytical', None}
             plot_3D_analyt_COH(cfg)
             fig_name = 'prob3D_COH_analyt'
         # save or show
@@ -355,7 +362,7 @@ def replicate():
 
     if to_replicate['Figure1']:
         for N in [100, 1000, 10000]:
-            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True, 
+            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
                       load_results = False, save_fig = True, plot_type = 'analytical' if N == 10000 else None) 
             # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
             #       then for N = 10000 we compute the results as well as we show the plot 
@@ -363,18 +370,18 @@ def replicate():
                                   
 
     if to_replicate['Figure2']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, 
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
                     load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
                               # To get some results faster, decrease N (and expect less smooth outputs)  
     
     if to_replicate['Figure3']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False,  
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False, coherent_PCMs_only = True,
                     load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
 
     if to_replicate['Figure4']:
-        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, 
+        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
                     load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 '''
@@ -383,13 +390,14 @@ def replicate():
 def replicate():
     # Switch to True in order to replicate the desired result(s)
     to_replicate = {'Figure1': 0, 
-                    'Figure2': 1,
-                    'Figure3': 1,
-                    'Figure4': 1}
+                    'Figure2': 0,
+                    'Figure3': 0,
+                    'Figure4': 0,
+                    'Figure5': 1}
 
     if to_replicate['Figure1']:
         for N in [100, 1000, 10000]:
-            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True, 
+            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True,  coherent_PCMs_only = True,
                       load_results = 1, save_fig = 0, plot_type = 'analytical' if N == 10000 else None) 
             # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
             #       then for N = 10000 we compute the results as well as we show the plot 
@@ -397,33 +405,39 @@ def replicate():
                                   
 
     if to_replicate['Figure2']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, 
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
+                    load_results = 0, save_fig = 0, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
                               # To get some results faster, decrease N (and expect less smooth outputs)  
     
     if to_replicate['Figure3']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False,  
+        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False, coherent_PCMs_only = True, 
                     load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
 
     if to_replicate['Figure4']:
-        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, 
+        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
                     load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
-def three_examples():
+    if to_replicate['Figure5']:
+        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        exp_prob_wrapper(cfg) # Takes roughly 20 minutes to compute
+
+
+def three_examples(): # TODO: necham to i do main branch
+    # the results from Section 3.4 Example
     from config import methods
-    eps = 0.1
-    A = np.array([[0, eps, 2, eps],
-                  [-eps, 0, 1, 2],
-                 [-2,-1, 0, 4],
-                  [-eps,-2,-4, 0]])
+    A = np.array([[0, 0.1, 2, 0.1],
+                  [-0.1, 0, 1, 2],
+                  [-2, -1, 0, 4],
+                  [-0.1, -2, -4, 0]])
     for method in methods:
         print(method.name)
         print(method.pcm2ranks(A))
 
 
 if __name__ == '__main__':
-    #replicate()
-    three_examples()
+    replicate()
+    #three_examples() # uncomment to get the results from Section 3.4 Example

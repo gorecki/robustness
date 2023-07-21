@@ -185,11 +185,13 @@ methods = [SaatyEigenvectorMethod(),
 
 class Cfg:
     ''' Project configuration'''
-    def __init__(self, N, do_random_v_space, zero_mean_exp, load_results, save_fig, plot_type): 
+    def __init__(self, N, do_random_v_space, zero_mean_exp, coherent_PCMs_only, load_results, save_fig, plot_type): 
         '''
         N                   - number of replications
         do_random_v_space   - if False, compute the v-robustness. If true, compute the robustness
         zero_mean_exp       - True, to replicate the zero mean perturbation results, False for non-zero mean perturbation results
+        coherent_PCMs_only  - if True, only coherent perturbed PCMs are considered (in order to involve the COH method into the comparison),
+                              if False, all perturbed PCMs are considered (and thus the COH method is excluded from the comparison)
         load_results        - if False, compute new results and save. If True, just load previously saved results.
         save_fig            - if False, just show the figure without saving, if True, save the figure without showing
         '''
@@ -200,9 +202,15 @@ class Cfg:
         self.N = N
         self.do_random_v_space = do_random_v_space
         self.zero_mean_exp = zero_mean_exp
+        self.coherent_PCMs_only = coherent_PCMs_only
+        if not coherent_PCMs_only:
+            # remove the last method (COH) as cannot guarantee that we get 
+            # an ouput from this method for a given perturbed PCM
+            self.methods = methods[:-1]
+            assert do_random_v_space, 'coherent_PCMs_only = False supported only for do_random_v_space = True!'
         self.load_results = load_results
         self.save_fig = save_fig
-        assert plot_type in ['analytical', 'numerical', None], "plot_type NOT in ['analytical', 'numerical', None]!"
+        assert plot_type in ['analytical', 'numerical', None], "plot_type NOT in ['analytical', 'numerical', None]!" # None serves for the analytical plot
         self.plot_type = plot_type
 
         if not self.do_random_v_space:
