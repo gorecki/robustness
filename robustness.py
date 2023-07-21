@@ -412,6 +412,18 @@ def replicate():
                     load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
+def three_examples():
+    from config import methods
+    eps = 0.1
+    A = np.array([[0, eps, 2, eps],
+                  [-eps, 0, 1, 2],
+                 [-2,-1, 0, 4],
+                  [-eps,-2,-4, 0]])
+    for method in methods:
+        print(method.name)
+        print(method.pcm2ranks(A))
+
 
 if __name__ == '__main__':
-    replicate()
+    #replicate()
+    three_examples()
