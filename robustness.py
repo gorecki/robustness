@@ -57,10 +57,12 @@ def create_dir_if_not_exists(dir_name):
 ###### Monte Carlo simulations #############################
 
 
-def replication_coh(PVgenerator, cfg, perturbation):
+def replication(PVgenerator, cfg, perturbation):
     # Perform one replication of the MC approach developed in the paper.
     # For all methods involved in cfg, computes if there is a rank reversal 
     # after perturbations to the consistent PCM are added 
+    # if cfg.coherent_PCMs_only = True, then only coherent perturbed PCMs are considered
+    #                           = False, all perturbed PCMs are considered
     results = {'n_all_reps': 0}
     for method in cfg.methods:
         results['n_equal_ranks_' + method.name] = 0 
@@ -110,13 +112,13 @@ def replication_coh(PVgenerator, cfg, perturbation):
 
 
 def exp_core(PVgenerator, cfg, perturbation):
-    # Repeat replication_coh() cfg.N times and sum up the results
+    # Repeat replication() cfg.N times and sum up the results
     results = {'n_all_reps': 0}
     for method in cfg.methods:
         results['n_equal_ranks_' + method.name] = 0 
         results['n_' + method.name] = 0
     for i in range(cfg.N):
-        i_results = replication_coh(PVgenerator, cfg, perturbation) # jen na coherent 
+        i_results = replication(PVgenerator, cfg, perturbation) 
         for method in cfg.methods:
             results['n_equal_ranks_' + method.name] += i_results['n_equal_ranks_' + method.name]
             results['n_' + method.name] += i_results['n_' + method.name]
@@ -209,19 +211,34 @@ def plot_3D_one_type_R(robustness, cfg, v1, v2_space, v3):
 
 
 def plot_nD_one_type_R(robustness, cfg):
-    # creates figures showing the robustness computed via our MC approach 
+    # creates figures showing the robustness computed via our MC approach
+    # if not cfg.coherent_PCMs_only, we also add a comparison with the results compared for cfg.coherent_PCMs_only = True
     size = 3
     fig, axes = plt.subplots(1, len(robustness.keys()), figsize=(len(robustness.keys()) * size, size + 2)) 
     x = np.arange(len(cfg.sigmas))  # the label locations
     width = 0.8/len(cfg.methods)
+    if not cfg.coherent_PCMs_only: 
+        # for this case, we also load results with coherent_PCMs_only in order to compare these two cases
+        with open('results/res_N_100000_ZME_True_randv2_True_COHonly_True.bin', 'rb') as handle: # compute results in this file first!
+            robustness_COHonly, *_= pickle.load(handle) 
+        width /= 2 # we show twice more results than usual
     for i_n, n in enumerate(robustness): # n in ns
         ax = axes[i_n]
-        rects = {}
         for i_method, method in enumerate(cfg.methods):
             r = [] # mean of all robustnesses computed on all random Vs
-            for r_sigma in robustness[n].values():
+            if not cfg.coherent_PCMs_only:
+                r_COHonly = []
+            for sigma, r_sigma in robustness[n].items():
                 r.append(np.mean(r_sigma[0]['cond_rough_' + method.name]))
-            ax.bar(x + (i_method - 1) * width, r, width, color = method.color, label = method.name)
+                if not cfg.coherent_PCMs_only:
+                    r_sigma_COHonly = robustness_COHonly[n][sigma]
+                    r_COHonly.append(np.mean(r_sigma_COHonly[0]['cond_rough_' + method.name]))
+            if cfg.coherent_PCMs_only:
+                ax.bar(x + (i_method - 1) * width, r, width, color = method.color, label = method.name)
+            else: # not cfg.coherent_PCMs_only:
+                ax.bar(x + (i_method - 1.5) * width, r, width, color = method.color, label = f'{method.name} (all PCMs)') # on all PCMs
+                ax.bar(x + (i_method + 0.5) * width, r_COHonly, width * 0.8, linewidth = 2,
+                       edgecolor = method.color, facecolor='none', label = f'{method.name} (coherent PCMs)') # on coherent PCMs only
 
         if i_n == 0:
             ax.set_ylabel('Robustness')
@@ -230,7 +247,7 @@ def plot_nD_one_type_R(robustness, cfg):
         ax.set_xticklabels(cfg.sigmas)
         ax.set_xlabel(r'$\sigma$')
         ax.set_ylim((0, 1))
-        if i_n == 0:
+        if i_n == len(robustness) - 1:
             ax.legend()
     fig.tight_layout()
 
@@ -386,6 +403,26 @@ def replicate():
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 '''
 
+
+def sample_perturbed_PCMs(cfg):
+    from config import SaatyEigenvectorMethod
+    EVM = SaatyEigenvectorMethod() # we need only the EVM method here
+    n = 5
+    fig, axs = plt.subplots(1, len(cfg.sigmas), sharey=True, tight_layout=True)
+    for i_sigma, sigma in enumerate(cfg.sigmas):
+        perturbation = cfg.get_perturbations_model(sigma, a = 0, loc = 0)
+        CRs = []
+        for N in range(10**3):
+            pv = PriorityVector(np.random.uniform(low = 0., high = 1., size = n)) # render a PV
+            pcm = pv.get_consistent_pcm()
+            noisy_pcm = add_perturbations(pcm, perturbation)
+            CRs.append(EVM.CR(noisy_pcm))
+        # plot
+        n_bins = 4
+        axs[i_sigma].hist(CRs, bins=n_bins)
+    plt.show(block=True)
+
+
 # TODO: urceno jen pro testovani, pak smazat
 def replicate():
     # Switch to True in order to replicate the desired result(s)
@@ -393,7 +430,8 @@ def replicate():
                     'Figure2': 0,
                     'Figure3': 0,
                     'Figure4': 0,
-                    'Figure5': 1}
+                    'Figure5': 0,
+                    'Figure6': 1}
 
     if to_replicate['Figure1']:
         for N in [100, 1000, 10000]:
@@ -417,13 +455,18 @@ def replicate():
 
     if to_replicate['Figure4']:
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = 1, save_fig = 0, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
     if to_replicate['Figure5']:
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
                     load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 20 minutes to compute
+
+    if to_replicate['Figure6']:
+        cfg = Cfg(N = 1e6, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
+                    load_results = 0, save_fig = 0, plot_type = None) 
+        sample_perturbed_PCMs(cfg) # Takes roughly 20 minutes to compute
 
 
 def three_examples(): # TODO: necham to i do main branch

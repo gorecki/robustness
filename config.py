@@ -131,9 +131,12 @@ class Method(ABC):
 
 
 class SaatyEigenvectorMethod(Method):
+
+    RI = {3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24} # Saaty's Average Random Index
+
     def __init__(self):
         super().__init__('EVM', 'darkorange') # 'darkorange' or 'darkviolet' = colour-blind friendly replacements for red
-
+        
 
     def pcm2ranks(self, pcm):
         # pcm is assumed to be in additive model
@@ -147,6 +150,17 @@ class SaatyEigenvectorMethod(Method):
             mult_w = -mult_w # make all elementes positive (as we know that now all have to be negative!)
         assert (mult_w > 0).all(), 'mult_w > 0 violated!'
         return mult_w.rank() # due to the monotonic isomorphism exp(), the we don't need, to waste time by transforming back to the additive model
+
+
+    def CR(self, pcm):
+        # compute consistency ratio for the given PCM
+        mult_pcm = np.exp(pcm) # strictly positive matrix
+        eig_values, _ = np.linalg.eig(mult_pcm)
+        lambda_max = eig_values.max().real
+        n = pcm.shape[0]
+        CI = max(0., (lambda_max - n) / (n - 1))
+        RI = SaatyEigenvectorMethod.RI[n]
+        return CI/RI
 
 
 
