@@ -14,10 +14,13 @@ import matplotlib.pyplot as plt
 import pickle
 from time import time
 import os
+from collections import defaultdict
 
 from config import Cfg, PriorityVector
 
-
+# constants
+RES_DIR = 'results' # directory for results
+FIG_DIR = 'figures' # directory for figures
 
 def add_perturbations(pcm, perturbation):
     # Add perturbations to a consistent PCM pcm
@@ -318,9 +321,8 @@ def exp_prob_wrapper(cfg):
     # Once done, a visualization is shown or saved.
     zero_mean_exp_f_addon = f'_ZME_{cfg.zero_mean_exp}'
     do_random_v_space_f_addon = f'_randv2_{cfg.do_random_v_space}'
-    res_dir = "results"
-    create_dir_if_not_exists(res_dir)
-    res_fname = f'{res_dir}/res_N_{cfg.N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}_COHonly_{cfg.coherent_PCMs_only}.bin'
+    create_dir_if_not_exists(RES_DIR)
+    res_fname = f'{RES_DIR}/res_N_{cfg.N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}_COHonly_{cfg.coherent_PCMs_only}.bin'
     if cfg.load_results:
         with open(res_fname, 'rb') as handle:
             robustness, v1, v2_space, v3 = pickle.load(handle)    
@@ -360,9 +362,8 @@ def exp_prob_wrapper(cfg):
         # save or show
         if cfg.save_fig:
             # Define the directory name
-            dir_name = "figures"
-            create_dir_if_not_exists(dir_name)
-            fname = f"{dir_name}/{fig_name}{zero_mean_exp_f_addon}"
+            create_dir_if_not_exists(FIG_DIR)
+            fname = f"{FIG_DIR}/{fig_name}{zero_mean_exp_f_addon}"
             plt.savefig(fname, dpi = 400)
             print(f'{fname} saved.')
         else:
@@ -405,23 +406,79 @@ def replicate():
 
 
 def sample_perturbed_PCMs(cfg):
-    from config import SaatyEigenvectorMethod
-    EVM = SaatyEigenvectorMethod() # we need only the EVM method here
-    n = 5
-    fig, axs = plt.subplots(1, len(cfg.sigmas), sharey=True, tight_layout=True)
-    for i_sigma, sigma in enumerate(cfg.sigmas):
-        perturbation = cfg.get_perturbations_model(sigma, a = 0, loc = 0)
-        CRs = []
-        for N in range(10**3):
-            pv = PriorityVector(np.random.uniform(low = 0., high = 1., size = n)) # render a PV
-            pcm = pv.get_consistent_pcm()
-            noisy_pcm = add_perturbations(pcm, perturbation)
-            CRs.append(EVM.CR(noisy_pcm))
-        # plot
-        n_bins = 4
-        axs[i_sigma].hist(CRs, bins=n_bins)
-    plt.show(block=True)
+    res_fname = f'{RES_DIR}/inconsistency.bin'
+    n_bins = 20
+    bins = np.linspace(0, 0.5, n_bins + 1) # linear space with n_bins bins
+    if cfg.load_results:
+        with open(res_fname, 'rb') as handle:
+            CRs, CR_hists = pickle.load(handle) 
+    else: # compute results
+        from config import SaatyEigenvectorMethod
+        EVM = SaatyEigenvectorMethod() # we need only the EVM method here
+        CRs, CR_hists = defaultdict(lambda : {}), defaultdict(lambda : {})
+        t_start = time()
+        for n in cfg.ns:
+            for i_sigma, sigma in enumerate(cfg.sigmas):
+                if i_sigma == 0: # omit this plot as it is overlying with i_sigma == 1
+                    continue
+                perturbation = cfg.get_perturbations_model(sigma, a = 0, loc = 0)
+                CRs[n][sigma] = []
+                for _ in range(cfg.N):
+                    pv = PriorityVector(np.random.uniform(low = 0., high = 1., size = n)) # render a PV
+                    pcm = pv.get_consistent_pcm()
+                    noisy_pcm = add_perturbations(pcm, perturbation)
+                    CRs[n][sigma].append(EVM.CR(noisy_pcm))
+                hist_counts = np.histogram(CRs[n][sigma], bins=bins)[0]
+                CR_hists[n][sigma] = hist_counts
+        print(f'Computed in {int(time()-t_start)} s')
+        # save results
+        with open(res_fname, 'wb') as handle:
+            pickle.dump((dict(CRs), dict(CR_hists)), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+    # plots
+    fig = plt.figure(figsize=(12, 6), tight_layout=True)
+    gs = fig.add_gridspec(2, 3)
+    axs = []
+    axs.append(fig.add_subplot(gs[0, 0]))
+    axs.append(fig.add_subplot(gs[0, 1]))
+    axs.append(fig.add_subplot(gs[1, 0]))
+    axs.append(fig.add_subplot(gs[1, 1]))
+    ax_combined = fig.add_subplot(gs[:, 2])
+    bin_width = np.diff(bins)
+    middle_points = bins[:-1] + bin_width / 2
+    colors = ["blue", "green", "black", "orange", "purple"]
+    linestyles = ['dashed', '-', '--', '-.', ':']
+    for i_n, n in enumerate(cfg.ns):
+        ax = axs[i_n]
+        ax.set_yscale('log')
+        for i_sigma, sigma in enumerate(cfg.sigmas):
+            if i_sigma == 0: # omit this plot as it is overlying with i_sigma == 1
+                continue
+            #hist_counts, hist_edges = np.histogram(CRs[n][sigma], bins=bins)[0]
+            hist_counts = CR_hists[n][sigma]
+            ax.plot(middle_points, hist_counts + 1, color = colors[i_sigma], marker = 'o', # + 1 due to log scale
+                    lw = 2, linestyle = linestyles[i_sigma], alpha = 0.5, label = r'$\sigma$=' + f'{sigma}')
+            ax_combined.plot(n, np.mean(CRs[n][sigma]), color = colors[i_sigma], marker = 'o',
+                             alpha = 0.5, label = r'$\sigma$=' + f'{sigma}')
+        if i_n == 0:
+            ax.legend()
+        ax.set_title(f'{n=}')
+        ax.set_xlabel('CR')
+        ax.set_ylabel('# perturbed PCMs')
+    ax_combined.set_xlabel('n')
+    ax_combined.set_ylabel('mean CR')
+    ax_combined.set_title('Mean consistency ratio')
+    ax_combined.set_xticks(cfg.ns)
+    ax_combined.set_xticklabels(cfg.ns)
+    handles, labels = plt.gca().get_legend_handles_labels()
+    ax_combined.legend(handles[:4],labels[:4]) # do not show repetead labels
+    # save or show
+    if cfg.save_fig:
+        fname = f"{FIG_DIR}/inconsistency"
+        plt.savefig(fname, dpi = 400)
+        print(f'{fname} saved.')
+    else:
+        plt.show(block = True)
 
 # TODO: urceno jen pro testovani, pak smazat
 def replicate():
@@ -464,9 +521,9 @@ def replicate():
         exp_prob_wrapper(cfg) # Takes roughly 20 minutes to compute
 
     if to_replicate['Figure6']:
-        cfg = Cfg(N = 1e6, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
-                    load_results = 0, save_fig = 0, plot_type = None) 
-        sample_perturbed_PCMs(cfg) # Takes roughly 20 minutes to compute
+        cfg = Cfg(N = 10**6, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
+                    load_results = 0, save_fig = 0, plot_type = 'numerical') 
+        sample_perturbed_PCMs(cfg) # Takes roughly ?? minutes to compute
 
 
 def three_examples(): # TODO: necham to i do main branch
