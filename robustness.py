@@ -182,12 +182,13 @@ def plot_3D_one_type_R(robustness, cfg, v1, v2_space, v3):
     legend_rat = []
     for i_a, a in enumerate(robustness[first_sigma]):
         for i_sigma, sigma in enumerate(robustness):
-            for method in cfg.methods:
+            for method in cfg.methods[1:]: # as GMM and EVM coincide for n = 3, we show only one of these two
                 ax = axs[0, i_a]
                 ax.plot(v2_space, robustness[sigma][a]['cond_rough_' + method.name], ls = sigma_line_style[i_sigma], 
                         color = method.color, alpha = 1, lw = 2 if method.name == 'EVM' else 1)
                 if i_a == 0:
-                    legend.append(f'{method.name} ' r'$\sigma$=' + f'{sigma}')
+                    m_name = 'GMM (EVM)' if method.name == 'GMM' else method.name 
+                    legend.append(f'{m_name} ' r'$\sigma$=' + f'{sigma}')
             # coherence ratio
             ax = axs[1, i_a]
             ax.plot(v2_space, robustness[sigma][a]['COH_ratio'], ls = sigma_line_style[i_sigma], color = 'm', alpha = 0.6)
@@ -269,7 +270,7 @@ def plot_3D_analyt_COH(cfg):
             assert cfg.zero_mean_exp == True, "this plot serves just for cfg.zero_mean_exp = True exps"
             zero_mean_exp_f_addon = f'_ZME_{cfg.zero_mean_exp}'
             do_random_v_space_f_addon = f'_randv2_{cfg.do_random_v_space}'
-            res_fname = f'results/res_N_{N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}.bin'
+            res_fname = f'results/res_N_{N}{zero_mean_exp_f_addon}{do_random_v_space_f_addon}_COHonly_{cfg.coherent_PCMs_only}.bin'
             with open(res_fname, 'rb') as handle:
                 robustness, v1, v2_space, v3 = pickle.load(handle)    
             robustness = robustness[n] # robustness is computed just for n = 3, so take just these results
@@ -411,12 +412,13 @@ def sample_perturbed_PCMs(cfg):
     bins = np.linspace(0, 0.5, n_bins + 1) # linear space with n_bins bins
     if cfg.load_results:
         with open(res_fname, 'rb') as handle:
-            CRs, CR_hists = pickle.load(handle) 
+            CR_hists, CR_means = pickle.load(handle) 
     else: # compute results
         from config import SaatyEigenvectorMethod
         EVM = SaatyEigenvectorMethod() # we need only the EVM method here
-        CRs, CR_hists = defaultdict(lambda : {}), defaultdict(lambda : {})
+        CRs, CR_hists, CR_means = defaultdict(lambda : {}), defaultdict(lambda : {}), defaultdict(lambda : {})
         t_start = time()
+        np.random.seed(0) # replicability 
         for n in cfg.ns:
             for i_sigma, sigma in enumerate(cfg.sigmas):
                 if i_sigma == 0: # omit this plot as it is overlying with i_sigma == 1
@@ -430,10 +432,11 @@ def sample_perturbed_PCMs(cfg):
                     CRs[n][sigma].append(EVM.CR(noisy_pcm))
                 hist_counts = np.histogram(CRs[n][sigma], bins=bins)[0]
                 CR_hists[n][sigma] = hist_counts
+                CR_means[n][sigma] = np.mean(CRs[n][sigma])
         print(f'Computed in {int(time()-t_start)} s')
         # save results
         with open(res_fname, 'wb') as handle:
-            pickle.dump((dict(CRs), dict(CR_hists)), handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump((dict(CR_hists), dict(CR_means)), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # plots
     fig = plt.figure(figsize=(12, 6), tight_layout=True)
@@ -454,14 +457,12 @@ def sample_perturbed_PCMs(cfg):
         for i_sigma, sigma in enumerate(cfg.sigmas):
             if i_sigma == 0: # omit this plot as it is overlying with i_sigma == 1
                 continue
-            #hist_counts, hist_edges = np.histogram(CRs[n][sigma], bins=bins)[0]
-            hist_counts = CR_hists[n][sigma]
-            ax.plot(middle_points, hist_counts + 1, color = colors[i_sigma], marker = 'o', # + 1 due to log scale
+            ax.plot(middle_points, CR_hists[n][sigma] + 1, color = colors[i_sigma], marker = 'o', # + 1 due to log scale
                     lw = 2, linestyle = linestyles[i_sigma], alpha = 0.5, label = r'$\sigma$=' + f'{sigma}')
-            ax_combined.plot(n, np.mean(CRs[n][sigma]), color = colors[i_sigma], marker = 'o',
+            ax_combined.plot(n, CR_means[n][sigma], color = colors[i_sigma], marker = 'o',
                              alpha = 0.5, label = r'$\sigma$=' + f'{sigma}')
         if i_n == 0:
-            ax.legend()
+            ax.legend(loc = 'lower right')
         ax.set_title(f'{n=}')
         ax.set_xlabel('CR')
         ax.set_ylabel('# perturbed PCMs')
@@ -483,17 +484,17 @@ def sample_perturbed_PCMs(cfg):
 # TODO: urceno jen pro testovani, pak smazat
 def replicate():
     # Switch to True in order to replicate the desired result(s)
-    to_replicate = {'Figure1': 0, 
-                    'Figure2': 0,
-                    'Figure3': 0,
-                    'Figure4': 0,
-                    'Figure5': 0,
-                    'Figure6': 1}
+    to_replicate = {'Figure1': 1, 
+                    'Figure2': 1,
+                    'Figure3': 1,
+                    'Figure4': 1,
+                    'Figure5': 1,
+                    'Figure6': 0}
 
     if to_replicate['Figure1']:
         for N in [100, 1000, 10000]:
             cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True,  coherent_PCMs_only = True,
-                      load_results = 1, save_fig = 0, plot_type = 'analytical' if N == 10000 else None) 
+                      load_results = 1, save_fig = 1, plot_type = 'analytical' if N == 10000 else None) 
             # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
             #       then for N = 10000 we compute the results as well as we show the plot 
             exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute (on Intel(R) Core(TM) i7-7700 CPU @3.60GHz and 32GB RAM)
@@ -501,7 +502,7 @@ def replicate():
 
     if to_replicate['Figure2']:
         cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = 0, save_fig = 0, plot_type = 'numerical') 
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
                               # To get some results faster, decrease N (and expect less smooth outputs)  
     
@@ -512,7 +513,7 @@ def replicate():
 
     if to_replicate['Figure4']:
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = 1, save_fig = 0, plot_type = 'numerical') 
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
     if to_replicate['Figure5']:
@@ -522,8 +523,8 @@ def replicate():
 
     if to_replicate['Figure6']:
         cfg = Cfg(N = 10**6, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
-                    load_results = 0, save_fig = 0, plot_type = 'numerical') 
-        sample_perturbed_PCMs(cfg) # Takes roughly ?? minutes to compute
+                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+        sample_perturbed_PCMs(cfg) # Takes roughly 140 minutes to compute
 
 
 def three_examples(): # TODO: necham to i do main branch
