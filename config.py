@@ -132,11 +132,11 @@ class Method(ABC):
 
 class SaatyEigenvectorMethod(Method):
 
-    RI = {3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24} # Saaty's Average Random Index
+    RI = {3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24} # Saaty's Average Random Index for n = 3,...,6
 
     def __init__(self):
-        super().__init__('EVM', 'darkorange') # 'darkorange' or 'darkviolet' = colour-blind friendly replacements for red
-        
+        super().__init__('EVM', 'darkorange')         
+
 
     def pcm2ranks(self, pcm):
         # pcm is assumed to be in additive model
@@ -166,7 +166,7 @@ class SaatyEigenvectorMethod(Method):
 
 class GeometricMeanMethod(Method):
     def __init__(self):
-        super().__init__('GMM', 'dodgerblue') # 'dodgerblue' or 'skyblue' = colour-blind friendly replacements for green 
+        super().__init__('GMM', 'dodgerblue') 
 
 
     def pcm2ranks(self, pcm):
@@ -179,7 +179,7 @@ class GeometricMeanMethod(Method):
 
 class CoherencyMethod(Method):
     def __init__(self):
-        super().__init__('COH', 'black') # 'black' or 'darkgray' = colour-blind friendly replacements for blue 
+        super().__init__('COH', 'black') 
 
 
     def pcm2ranks(self, pcm):

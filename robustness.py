@@ -2,8 +2,8 @@
 Unifying framework for evaluating robustness of pairwise comparison methods against rank reversal
 
 Implementing the framework developed in:
-Jan Gorecki, David Bartl and Jaroslav Ramik (2023). Robustness of methods calculating priority 
-vectors from pairwise comparison matrices against rank reversal: A probabilistic concept
+Jan Gorecki, David Bartl and Jaroslav Ramik (2023). Robustness of methods for calculating priority 
+vectors from pairwise comparison matrices against rank reversal: A probabilistic approach
 (below referred to as 'the paper')
 
 Copyright 2023 Jan Gorecki
@@ -22,12 +22,15 @@ from config import Cfg, PriorityVector
 RES_DIR = 'results' # directory for results
 FIG_DIR = 'figures' # directory for figures
 
+
+########### auxiliaries ##########
+
 def add_perturbations(pcm, perturbation):
     # Add perturbations to a consistent PCM pcm
     perturbed_pcm = pcm.copy()
     n = pcm.shape[0]
     for i in range(n):
-        for j in range(i+1, n): # iterate just above the diagonal
+        for j in range(i+1, n):                         # iterate just above the diagonal
             X_ij = perturbation.rnd()                   # generate random perturbation
             perturbed_pcm[i, j] = pcm[i, j] + X_ij      # add it to the consistent matrix 
             perturbed_pcm[j, i] = -perturbed_pcm[i, j]  # keep reciprocity
@@ -57,6 +60,19 @@ def create_dir_if_not_exists(dir_name):
         print(f"Directory {dir_name} created successfully")
 
 
+def three_examples(): 
+    # Three methods applied to a single PCM
+    # the results from Section 3.4 Example
+    from config import methods
+    A = np.array([[0, 0.1, 2, 0.1],
+                  [-0.1, 0, 1, 2],
+                  [-2, -1, 0, 4],
+                  [-0.1, -2, -4, 0]])
+    for method in methods:
+        print(method.name)
+        print(method.pcm2ranks(A))
+
+
 ###### Monte Carlo simulations #############################
 
 
@@ -74,7 +90,7 @@ def replication(PVgenerator, cfg, perturbation):
     # repeat until a coherent noisy PCM if generated (computing the v-robustness conditioned on that the 
     # generated PCM is coherent)
     while do_rep:
-        pv = PVgenerator()             # generate the "uknown" PV 
+        pv = PVgenerator()              # generate the "uknown" PV 
         if not pv.are_weights_unique(): # uniqueness check
             continue # some of weights are duplicate, so repeat     
         pcm = pv.get_consistent_pcm()                            # generate consistent PCM from random vector
@@ -370,43 +386,14 @@ def exp_prob_wrapper(cfg):
         else:
             plt.show(block = True)
 
-'''
-TODO: tohle vratit, az to budu publikovat
-def replicate():
-    # Switch to True in order to replicate the desired result(s)
-    to_replicate = {'Figure1': True, 
-                    'Figure2': True,
-                    'Figure3': True,
-                    'Figure4': True}
 
-    if to_replicate['Figure1']:
-        for N in [100, 1000, 10000]:
-            cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
-                      load_results = False, save_fig = True, plot_type = 'analytical' if N == 10000 else None) 
-            # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
-            #       then for N = 10000 we compute the results as well as we show the plot 
-            exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute (on Intel(R) Core(TM) i7-7700 CPU @3.60GHz and 32GB RAM)
-                                  
-
-    if to_replicate['Figure2']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = False, save_fig = True, plot_type = 'numerical') 
-        exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
-                              # To get some results faster, decrease N (and expect less smooth outputs)  
-    
-    if to_replicate['Figure3']:
-        cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False, coherent_PCMs_only = True,
-                    load_results = False, save_fig = True, plot_type = 'numerical') 
-        exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
-
-    if to_replicate['Figure4']:
-        cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = False, save_fig = True, plot_type = 'numerical') 
-        exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
-'''
-
+###### Additional simulation study ##################################
+###### connecting perturbation parameters ###########################
+###### and inconsistency of the PCM #################################
 
 def sample_perturbed_PCMs(cfg):
+    # sample cfg.N of perturbed PCMs and computes the distribution of their 
+    # Saaty's consistency ratio 
     res_fname = f'{RES_DIR}/inconsistency.bin'
     n_bins = 20
     bins = np.linspace(0, 0.5, n_bins + 1) # linear space with n_bins bins
@@ -481,20 +468,23 @@ def sample_perturbed_PCMs(cfg):
     else:
         plt.show(block = True)
 
-# TODO: urceno jen pro testovani, pak smazat
+###### end of Additional simulation study ##################################
+
+    
+
 def replicate():
     # Switch to True in order to replicate the desired result(s)
-    to_replicate = {'Figure1': 1, 
-                    'Figure2': 1,
-                    'Figure3': 1,
-                    'Figure4': 1,
-                    'Figure5': 1,
-                    'Figure6': 0}
+    to_replicate = {'Figure1': True, 
+                    'Figure2': True,
+                    'Figure3': True,
+                    'Figure4': True,
+                    'Figure5': True,
+                    'Figure6': True}
 
     if to_replicate['Figure1']:
         for N in [100, 1000, 10000]:
             cfg = Cfg(N = N, do_random_v_space = False, zero_mean_exp = True,  coherent_PCMs_only = True,
-                      load_results = 1, save_fig = 1, plot_type = 'analytical' if N == 10000 else None) 
+                      load_results = False, save_fig = True, plot_type = 'analytical' if N == 10000 else None) 
             # NOTE: (explaining plot_type) we first compute the results for N in [100, 1000] without showing the plot, and 
             #       then for N = 10000 we compute the results as well as we show the plot 
             exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute (on Intel(R) Core(TM) i7-7700 CPU @3.60GHz and 32GB RAM)
@@ -502,43 +492,33 @@ def replicate():
 
     if to_replicate['Figure2']:
         cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
                               # To get some results faster, decrease N (and expect less smooth outputs)  
     
     if to_replicate['Figure3']:
         cfg = Cfg(N = 10000, do_random_v_space = False, zero_mean_exp = False, coherent_PCMs_only = True, 
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 10 minutes to compute
 
     if to_replicate['Figure4']:
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = True,
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 70 minutes to compute
 
     if to_replicate['Figure5']:
         cfg = Cfg(N = 100000, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = False, save_fig = True, plot_type = 'numerical') 
         exp_prob_wrapper(cfg) # Takes roughly 20 minutes to compute
 
     if to_replicate['Figure6']:
         cfg = Cfg(N = 10**6, do_random_v_space = True, zero_mean_exp = True, coherent_PCMs_only = False,
-                    load_results = 1, save_fig = 1, plot_type = 'numerical') 
+                    load_results = False, save_fig = True, plot_type = 'numerical') 
         sample_perturbed_PCMs(cfg) # Takes roughly 140 minutes to compute
 
-
-def three_examples(): # TODO: necham to i do main branch
-    # the results from Section 3.4 Example
-    from config import methods
-    A = np.array([[0, 0.1, 2, 0.1],
-                  [-0.1, 0, 1, 2],
-                  [-2, -1, 0, 4],
-                  [-0.1, -2, -4, 0]])
-    for method in methods:
-        print(method.name)
-        print(method.pcm2ranks(A))
+    #three_examples() # uncomment to get the results from Section 3.4 Example
 
 
 if __name__ == '__main__':
     replicate()
-    #three_examples() # uncomment to get the results from Section 3.4 Example
+    
