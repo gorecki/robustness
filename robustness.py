@@ -470,7 +470,6 @@ def sample_perturbed_PCMs(cfg):
 
 ###### end of Additional simulation study ##################################
 
-    
 
 def replicate():
     # Switch to True in order to replicate the desired result(s)
